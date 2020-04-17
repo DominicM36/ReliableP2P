@@ -2,8 +2,10 @@ import socket
 import threading
  
 ENCODING = 'utf-8'
+
+
  
- 
+# Server side
 class Receiver(threading.Thread):
  
     def __init__(self, my_host, my_port):
@@ -26,13 +28,13 @@ class Receiver(threading.Thread):
                         print("{}: {}".format(client_address, full_message.strip()))
                         break
             finally:
-                connection.shutdown(2)
+                #connection.shutdown(2)
                 connection.close()
  
     def run(self):
         self.listen()
  
- 
+# Client side 
 class Sender(threading.Thread):
  
     def __init__(self, my_friends_host, my_friends_port):
@@ -46,7 +48,7 @@ class Sender(threading.Thread):
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.connect((self.host, self.port))
             s.sendall(message.encode(ENCODING))
-            s.shutdown(2)
+            #s.shutdown(2)
             s.close()
  
  
