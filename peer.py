@@ -123,7 +123,6 @@ def main():
     threads = [server.start(), client.start()]
     # send a message to database peer requesting all the peers in the list
     # connect my_port
-
     # Send a message to all peers to update their peer lists
 
 
