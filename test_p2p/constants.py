@@ -8,7 +8,7 @@ import sys
 import time
 from random import randint
 #from music import *
-from fileIO import fileIO
+import fileIO
 
 BYTE_SIZE = 1024
 HOST = '127.0.0.1'
