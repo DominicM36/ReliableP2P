@@ -1,5 +1,7 @@
 import socket
 import threading
+import sys
+import os
 
 ENCODING = 'utf-8'
 
@@ -80,7 +82,9 @@ class Server(threading.Thread):
                         # disconnect request received by all peers
                         elif (msg[0] == 'disconnect'):
                             if('localhost', int(msg[1]) in peer_list):
+                                print('Node ' + str(msg[1]) + ' disconnected')
                                 peer_list.remove(('localhost', int(msg[1])))
+                                print(peer_list)
                             else:
                                 print('Disconnecting node not in network')
                         else:
@@ -113,37 +117,43 @@ class Client(threading.Thread):
     def run(self):
         global peer_list
         while True:
-            print("Waiting for command...")
             message = input("Enter command: ")
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             # Current peer leaving network
             if (message == 'disconnect'):
                 message = message + ' ' + str(self.my_port)
                 refused_peers = []  # List of peers that refused connection request
                 for peer in peer_list:  # loop through all peers
+                    print('Connecting to peer: ' + str(peer[1]))
+                    if(peer[1] == self.my_port):
+                        continue
                     try:
-                        s.connect((peer[0], peer[1]))
+                        peer_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                        peer_socket.connect((peer[0], peer[1]))
                         print('Requesting: ' + message)
-                        s.send(message.encode(ENCODING))
+                        peer_socket.send(message.encode(ENCODING))
                         print('Sent request')
-                        s.close()
+                        peer_socket.close()
                     except socket.error as e:
                         refused_peers.append(peer)  # add refused peer to list
                         print('Connection refused by: ' + peer + ' , trying again later...')
 
                 for rpeer in refused_peers:
                     try:
-                        s.connect((rpeer[0], rpeer[1]))
+                        refused_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                        refused_socket.connect((rpeer[0], rpeer[1]))
                         print('Requesting: ' + message)
-                        s.send(message.encode(ENCODING))
+                        refused_socket.send(message.encode(ENCODING))
                         print('Sent request')
-                        s.close()
+                        refused_socket.close()
                     except socket.error as e:
                         print('Connection refused by: ' + peer + ' a second time, ignoring')
 
                 print("Leaving network...\n")
-                quit()
+                # sys.exit()
+                os.system('kill %d' % os.getpid()) #program kills itself
 
+
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             # For other requests to specific peers
             try:
                 s.connect((self.host, self.port))
@@ -168,7 +178,7 @@ def main():
     server = Server(my_host, my_port)
     client = Client(database_peer_host, database_peer_port, my_port)
     threads = [server.start(), client.start()]
-    print (threads) # display thread array
+    # print (threads) # display thread array
     # send a message to database peer requesting all the peers in the list
     # connect my_port
     # Send a message to all peers to update their peer lists
