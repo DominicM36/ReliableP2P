@@ -57,7 +57,12 @@ class Server(threading.Thread):
                                     if peer[1] != self.port:
                                         peer_socket = socket.socket(
                                             socket.AF_INET, socket.SOCK_STREAM)
-                                        peer_socket.connect((peer[0], peer[1]))
+                                        try:
+                                            peer_socket.connect((peer[0], peer[1]))
+                                        except socket.error as e:
+                                            print('Connection refused by peer')
+                                            peer_socket.close()
+                                            continue
                                         message_to_send = "update_peers\n" + \
                                             str(peer_list)
                                         peer_socket.send(
@@ -72,6 +77,12 @@ class Server(threading.Thread):
                                 pair = item.split(', ')
                                 new_peer_list.append((pair[0].strip('\''), int(pair[1])))
                             peer_list = new_peer_list.copy() # peer list is now updated
+                        # disconnect request received by all peers
+                        elif (msg[0] == 'disconnect'):
+                            if('localhost', int(msg[1]) in peer_list):
+                                peer_list.remove(('localhost', int(msg[1])))
+                            else:
+                                print('Disconnecting node not in network')
                         else:
                             print(full_message)
                             message = 'Command could not be executed'
@@ -80,7 +91,7 @@ class Server(threading.Thread):
                         # print(peer_list)
                         break
             except Exception as e:
-                print("Exception: " + e)
+                print("Exception: " + str(e))
             finally:
                 # connection.shutdown(2)
                 connection.close()
@@ -100,10 +111,46 @@ class Client(threading.Thread):
         self.my_port = my_port
 
     def run(self):
+        global peer_list
         while True:
+            print("Waiting for command...")
             message = input("Enter command: ")
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.connect((self.host, self.port))
+            # Current peer leaving network
+            if (message == 'disconnect'):
+                message = message + ' ' + str(self.my_port)
+                refused_peers = []  # List of peers that refused connection request
+                for peer in peer_list:  # loop through all peers
+                    try:
+                        s.connect((peer[0], peer[1]))
+                        print('Requesting: ' + message)
+                        s.send(message.encode(ENCODING))
+                        print('Sent request')
+                        s.close()
+                    except socket.error as e:
+                        refused_peers.append(peer)  # add refused peer to list
+                        print('Connection refused by: ' + peer + ' , trying again later...')
+
+                for rpeer in refused_peers:
+                    try:
+                        s.connect((rpeer[0], rpeer[1]))
+                        print('Requesting: ' + message)
+                        s.send(message.encode(ENCODING))
+                        print('Sent request')
+                        s.close()
+                    except socket.error as e:
+                        print('Connection refused by: ' + peer + ' a second time, ignoring')
+
+                print("Leaving network...\n")
+                quit()
+
+            # For other requests to specific peers
+            try:
+                s.connect((self.host, self.port))
+            except socket.error as e:  # to handle connection refused case
+                print("Error connecting to peer: " + e)
+                s.close()
+                continue
 
             if(message == 'connect'):
                 message = message + ' ' + str(self.my_port)
@@ -121,6 +168,7 @@ def main():
     server = Server(my_host, my_port)
     client = Client(database_peer_host, database_peer_port, my_port)
     threads = [server.start(), client.start()]
+    print (threads) # display thread array
     # send a message to database peer requesting all the peers in the list
     # connect my_port
     # Send a message to all peers to update their peer lists
