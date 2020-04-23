@@ -136,6 +136,7 @@ class Server(threading.Thread):
     def run(self):
         self.listen()
 
+
 # Client side
 class Client(threading.Thread):
 
@@ -305,9 +306,11 @@ class Client(threading.Thread):
                         peer_pair = peers_to_query[index] # get host-port pair from list
                         del peers_to_query[index] # Remove from peers to query list to avoid duplicate queries of the same peer
                         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                        
                         # For other requests to specific peers
                         try: # make a request to a peer
                             s.connect(peer_pair)
+                            
                         except socket.error as e:  # to handle connection refused case
                             print("Error connecting to peer: " + e)
                             s.close()
@@ -345,7 +348,10 @@ class Client(threading.Thread):
                             if(rec_data2.split('\n')[0] == 'map'): # file was received
                                 # Parse the received map and update our address book
                                 map_to_parse = rec_data2[rec_data2.index('\n\n') + 2:]
+                                
+                                # Print received map here for debugging
                                 print('Received map: ' + map_to_parse)
+
                                 returned_map = parse_map(map_to_parse)
                                 update_address_book(returned_map)
                             
@@ -354,7 +360,10 @@ class Client(threading.Thread):
                         elif(rec_data.split('\n')[0] == 'map'):
                             # Parse the received map and update our address book
                             map_to_parse = rec_data[rec_data.index('\n\n') + 2:]
+
+                            # Print received map here for debugging
                             print('Received map: ' + map_to_parse)
+
                             returned_map = parse_map(map_to_parse)
                             update_address_book(returned_map)
                         else:
@@ -364,6 +373,7 @@ class Client(threading.Thread):
                 # If peers_to_query is empty, try querying database peer
                 if(len(peers_to_query) == 0 and not done):
                     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    
                     # For other requests to specific peers
                     try: # make a request to a peer
                         s.connect((database_peer_host, database_peer_port))
@@ -382,16 +392,18 @@ class Client(threading.Thread):
                         rec_data += res
 
                     split_data = rec_data.split()
+                    
                     if(split_data[0].decode(ENCODING) == 'file'): # file was received
                         # Store the file
                         print('Writing to file')
-                        write_to_file(rec_data, filename, self.my_port)
+                        write_to_file(rec_data, filename, self.my_port)   
                     else:
                         print('Received response: ' + rec_data)
 
                     done = True
             else:
                 print ("Invalid command, try connect, disconnect, or get")
+
 
 def main():
     global database_peer_host
@@ -416,6 +428,7 @@ def main():
     threads = [server.start(), client.start()]
     # print (threads) # display thread array
 
+
 def update_address_book(peer_map):
     global address_book
     for file_name in peer_map:
@@ -428,32 +441,46 @@ def update_address_book(peer_map):
             # File name doesn't exist in address book
             address_book[file_name] = peer_map[file_name]
 
+
 def parse_map(msg):
+    # Taking in a message, parse out the important values in order to create a datastructure to return.
     # Parsing received address book from peer
     # Format: {(key1, [('ip1', port1), ('ip2', port2)])}
+    
     map_to_return = {} # map with form {filename, list of pairs}
-    parse = msg.strip('{}()')
-    map_values = parse.split(']), (')
+    parse = msg.strip('{}()') # Remove braces and parenthesis at the end of string
+    map_values = parse.split(']), (') #split into a list of chunks. These chunks are seperated by the difference in keys
+
     for i in map_values:
         i = i.strip(']')
-        current_keys = i.split(', [')
+        current_keys = i.split(', [') # seperate the key and the list of pairs in the string
         key = current_keys[0]
-        print("current key is" + key)
+        print("current key is " + key)
         string_list = current_keys[1]
         print(string_list)
         pair_as_strings = string_list.strip('()').split('), (')
         
-        list_of_pairs = []
+        list_of_pairs = [] # Used to push a pair to this list
+        
         for pair in pair_as_strings:
-            pair_details = pair.split(', ')
-            pair_to_add = (pair_details[0].strip('\''), int(pair_details[1]))
+            pair_details = pair.split(', ') # get actual values from the pairs
+            
+            # Create values for each component of the pair
+            pair_part_1 = pair_details[0].strip('\'')
+            pair_part_2 = int(pair_details[1])
+
+            # Create a pair to push to the list using previously found details
+            pair_to_add = (pair_part_1, pair_part_2)
+
             print("Pair to be added: " + str(pair_to_add))
+
+            # Add the pair to the list using append
             list_of_pairs.append(pair_to_add)
 
-        #list_of_nodes = string_list.split(', ') # this will be stored as a list of all nodes with the file: key
         map_to_return[key] = list_of_pairs # set the list of nodes to key of filename
     
     return map_to_return 
+
 
 def write_to_file(data, filename, port):
     to_write = data[data.index(('\n\n').encode()) + 2:] # get actual file data and then store it  
@@ -467,6 +494,7 @@ def write_to_file(data, filename, port):
     if(file_pointer):
         file_pointer.write(to_write) # Encode the file to write the bytes when downloaded.
         file_pointer.close()
+
 
 if __name__ == '__main__':
     main()
