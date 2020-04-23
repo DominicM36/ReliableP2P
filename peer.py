@@ -175,6 +175,17 @@ def main():
     my_port = int(input("Enter my port: "))
     database_peer_port = int(input("Enter database peer port: "))
     peer_list.append((database_peer_host, database_peer_port))
+    
+    # Create directory for this port
+    path = 'port_' + str(my_port) # stores directory in form port_9000  
+    try:
+        os.mkdir(path)
+    except Exception as e:
+        # situation when directory already exists
+        print ("Directory already exists for port: " + str(my_port))
+
+    # Database directory is 'db'
+
     server = Server(my_host, my_port)
     client = Client(database_peer_host, database_peer_port, my_port)
     threads = [server.start(), client.start()]
