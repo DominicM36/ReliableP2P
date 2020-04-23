@@ -9,15 +9,13 @@ my_host = 'localhost'
 
 # host for the always on database peer, will be public IP if deployed
 database_peer_host = 'localhost'
-database_peer_port = 8000  # port for the always on database peer
+database_peer_port = 9000  # port for the always on database peer
 
 # peerList only contains database peer to start with
 peer_list = []
-directory = {}  # hash map with index as file name and a list of IPs and ports
+address_book = {}  # hash map with index as file name and a list of IPs and ports
 
 # Server side
-
-
 class Server(threading.Thread):
 
     def __init__(self, my_host, my_port):
@@ -27,6 +25,8 @@ class Server(threading.Thread):
 
     def listen(self):
         global peer_list
+        global database_peer_host
+        global database_peer_port
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.bind((self.host, self.port))
         sock.listen(10)
@@ -104,8 +104,6 @@ class Server(threading.Thread):
         self.listen()
 
 # Client side
-
-
 class Client(threading.Thread):
 
     def __init__(self, my_friends_host, my_friends_port, my_port):
@@ -116,6 +114,9 @@ class Client(threading.Thread):
 
     def run(self):
         global peer_list
+        global address_book
+        global database_peer_host
+        global database_peer_port
         while True:
             message = input("Enter command: ")
             # Current peer leaving network
@@ -151,31 +152,51 @@ class Client(threading.Thread):
                 print("Leaving network...\n")
                 # sys.exit()
                 os.system('kill %d' % os.getpid()) #program kills itself
-
-
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            # For other requests to specific peers
-            try:
-                s.connect((self.host, self.port))
-            except socket.error as e:  # to handle connection refused case
-                print("Error connecting to peer: " + e)
-                s.close()
-                continue
-
-            if(message == 'connect'):
+            elif(message == 'connect'):
                 message = message + ' ' + str(self.my_port)
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                # For other requests to specific peers
+                try:
+                    s.connect((self.host, self.port))
+                except socket.error as e:  # to handle connection refused case
+                    print("Error connecting to peer: " + e)
+                    s.close()
+                    continue
+                print('Requesting: ' + message)
+                s.send(message.encode(ENCODING))
+                print('Sent request')
+                s.close()
+            elif(message.split(' ')[0] == 'get'):
+                message = message + ' ' + str(self.my_port)
+                done = False
+                peers_to_query = peer_list.copy()
+                peers_to_query.remove((database_peer_host, database_peer_port)) # database peer removed, should be force queried last since it is a back up option
+                while (not done):
+                    # Check if file exists in hash map
+                    # If it exists, make a list of peers that have that file
+                    # Request randomly until file is received or list is exhausted
+                    # Whenever we receive the file, also recieve the address book and merge
+                    # as a secondary request in the same connection. Also, query database 
+                    # peer at the end.
+                    
+                    # If it doesn't exist, query a random peer from that list and request 
+                    # the file in the same manner. Update address book. Go to top of loop if not found.
 
-            print('Requesting: ' + message)
-            s.send(message.encode(ENCODING))
-            print('Sent request')
-            s.close()
-
+                    # If peers_to_query is empty, try querying database peer
+                    print()
+            else:
+                print ("Invalid command, try connect, disconnect, or get")
 
 def main():
+    global database_peer_host
+    global database_peer_port
+    global peer_list
+    global address_book
     my_port = int(input("Enter my port: "))
     database_peer_port = int(input("Enter database peer port: "))
     peer_list.append((database_peer_host, database_peer_port))
     
+    # Database directory is 'db'
     # Create directory for this port
     path = 'port_' + str(my_port) # stores directory in form port_9000  
     try:
@@ -184,16 +205,27 @@ def main():
         # situation when directory already exists
         print ("Directory already exists for port: " + str(my_port))
 
-    # Database directory is 'db'
-
     server = Server(my_host, my_port)
     client = Client(database_peer_host, database_peer_port, my_port)
     threads = [server.start(), client.start()]
     # print (threads) # display thread array
-    # send a message to database peer requesting all the peers in the list
-    # connect my_port
-    # Send a message to all peers to update their peer lists
 
+def update_address_book(peer_map, peer_port):
+    global address_book
+    for file_name in peer_map:
+        if file_name in address_book.keys():
+            # Update list of items
+            if not peer_port in address_book[file_name]:
+                # Add peer to address book
+                address_book[file_name].append(peer_port)
+        else:
+            # File name doesn't exist in address book
+            address_book[file_name] = [peer_port]
+
+def parse_map(msg):
+    # Parsing received address book from peer
+    # Format: {(key1, [value 1, value2]), (key2, [value3])}
+    print()
 
 if __name__ == '__main__':
     main()
