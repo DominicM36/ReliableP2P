@@ -36,19 +36,17 @@ class Server(threading.Thread):
             print("Accepted connection from: " + str(client_address))
             try:
                 full_message = ""
-                done = 0
-                while done == 0:
-                    #print("Test message")
+                done = False
+                while not done:
                     data = connection.recv(1024)
                     full_message = full_message + data.decode(ENCODING)
-                    #print("Test message 2")
                     if not data or len(data) < 1024:
                         print("{}: {}".format(
                             client_address, full_message.strip()))
                         # Only for database peer connection case when a new peer joins network
                         # Contains 'connect port_number'
                         msg = full_message.split()
-                        done = 1
+                        done = True
 
                         # if the server receives a connection request from a client for the peer list
                         if(msg[0] == 'connect'):
@@ -88,6 +86,40 @@ class Server(threading.Thread):
                                 print(peer_list)
                             else:
                                 print('Disconnecting node not in network')
+                        elif(msg[0] == 'get'):
+                            # Send back file if exists else send back map
+                            print('Received get request')
+                            # Check if file exists
+                            if self.port == database_peer_port:
+                                # filename = os.getcwd() + '/db/' + msg[1]
+                                filename = 'db/' + msg[1]
+                            else:
+                                # filename = os.getcwd() + '/port_' + self.port + '/' + msg[1]
+                                filename = 'port_' + self.port + '/' + msg[1]
+
+                            print('filename: ' + filename)
+                            try:
+                                f = open(filename, 'rb')
+                            except FileNotFoundError:
+                                print('Requested file was not found. Sending back map.')
+                                res = 'map\n\n' + str(address_book)
+                                connection.send(res.encode(ENCODING))
+                            else:
+                                # Send back file
+                                response_body_raw = f.read()
+                                f.close()
+                                response_body = 'file\n\n'
+                                response_body = response_body.encode() + response_body_raw
+                                print(response_body)
+                                connection.send(response_body)
+                            
+                        elif(msg[0] == 'map'):
+                            # Send back map
+                            print('Sending map')
+                            res = 'map\n\n' + str(address_book)
+                            #{(key1, [value1, value2]), (key2, [value3])}
+                            connection.send(res.encode(ENCODING))
+
                         else:
                             print(full_message)
                             message = 'Command could not be executed'
@@ -168,26 +200,84 @@ class Client(threading.Thread):
                 print('Sent request')
                 s.close()
             elif(message.split(' ')[0] == 'get'):
+                print('In get')
                 message = message + ' ' + str(self.my_port)
                 filename = message.split(' ')[1]
                 done = False
                 peers_to_query = peer_list.copy()
                 peers_to_query.remove((database_peer_host, database_peer_port)) # database peer removed, should be force queried last since it is a back up option
-                while (not done):
+                peers_to_query.remove((self.host, self.my_port)) # remove self
+                while (len(peers_to_query) > 0 and not done):
+                    print('In while loop')
                     # Check if file exists in hash map
                     if(filename in address_book.keys()):
                         # If it exists, make a list of peers that have that file
                         peers_to_query = address_book[filename]
+                        peers_to_query.remove((self.host, self.my_port)) # remove self
                         # Request randomly until file is received or list is exhausted
                         while(peers_to_query): # while peers to query is not empty
                             index = randint(0, len(peers_to_query) - 1) # pick an index in the list as a peer to query
-                            peer_port = peers_to_query[index] # get port from list
+                            peer_pair = peers_to_query[index] # get host-port pair from list
+                            del peers_to_query[index]
                             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                             # For other requests to specific peers
                             try: # make a request to a peer
-                                s.connect((self.host, peer_port))
+                                s.connect(peer_pair)
                             except socket.error as e:  # to handle connection refused case
                                 print("Error connecting to peer: " + e)
+                                s.close()
+                                continue
+                            print('Requesting: ' + message)
+                            s.send(message.encode(ENCODING))
+                            print('Sent request to pair: ' + peer_pair)
+
+                            res = s.recv(1024)
+                            rec_data = res
+                            while(len(res) != 0):
+                                res = s.recv(1024)
+                                rec_data += res
+
+                            split_data = rec_data.split()
+                            if(split_data[0].decode(ENCODING) == 'file'): # file was received
+                                # Store the file
+                                write_to_file(rec_data, filename, self.my_port)
+                            else:
+                                print('Received response: ' + rec_data)
+
+                            # Request Address Book from peer
+                            req = 'map ' + str(self.my_port)
+                            print('Requesting map')
+                            s.send(req.encode(ENCODING))
+                            print('Sent request')
+
+                            # Whenever we receive the file, also recieve the address book and merge
+                            # as a secondary request in the same connection.
+                            res2 = s.recv(1024)
+                            rec_data2 = res2
+                            while(len(res2) != 0):
+                                res2 = s.recv(1024)
+                                rec_data2 += res2
+                            rec_data2 = rec_data2.decode(ENCODING)
+                            if(rec_data2.split('\n')[0] == 'map'): # file was received
+                                # Parse the received map and update our address book
+                                map_to_parse = rec_data2[rec_data2.index('\n\n') + 2:]
+                                print('Received map: ' + map_to_parse)
+                                returned_map = parse_map(map_to_parse)
+                                update_address_book(returned_map)
+                                
+                            s.close()
+                            done = True
+                            break
+
+                        # Also, query database peer at the end.
+                        # Only want file from database, hashmap here will be way out of date due to the way the address book is designed to update
+                        if(not done):
+                            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                            # For other requests to specific peers
+                            try: # make a request to a peer
+                                s.connect((database_peer_host, database_peer_port))
+                            except socket.error as e:  # to handle connection refused case
+                                print("Error connecting to database: " + str(e))
                                 s.close()
                                 continue
                             print('Requesting: ' + message)
@@ -200,49 +290,106 @@ class Client(threading.Thread):
                                 res = s.recv(1024)
                                 rec_data += res
 
-                            rec_data = rec_data.decode(ENCODING)
-                            if(rec_data.split(' ')[0] == 'file'): # file was received
+                            split_data = rec_data.split()
+                            if(split_data[0].decode(ENCODING) == 'file'): # file was received
                                 # Store the file
-                                to_write = rec_data[rec_data.index('\n\n') + 2:].encode(ENCODING) # get actual file data and then store it  
-                                store_path = os.getcwd() + '/port_' + self.my_port + '/' + filename
-                                try:
-                                    file_pointer = open(store_path, 'wb')
-                                except:
-                                    print('Could not open file for download')
-                                
-                                if(file_pointer):
-                                    file_pointer.write(to_write) # Encode the file to write the bytes when downloaded.
+                                write_to_file(rec_data, filename, self.my_port)
                             else:
                                 print('Received response: ' + rec_data)
+                            
+                        done = True
+                    else:
+                        # If it doesn't exist, query a random peer from that list and request 
+                        # the file in the same manner. Update address book. Go to top of loop if not found.
+                        index = randint(0, len(peers_to_query) - 1)
+                        peer_pair = peers_to_query[index] # get host-port pair from list
+                        del peers_to_query[index] # Remove from peers to query list to avoid duplicate queries of the same peer
+                        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                        # For other requests to specific peers
+                        try: # make a request to a peer
+                            s.connect(peer_pair)
+                        except socket.error as e:  # to handle connection refused case
+                            print("Error connecting to peer: " + e)
+                            s.close()
+                            continue
+                        print('Requesting: ' + message)
+                        s.send(message.encode(ENCODING))
+                        print('Sent request to peer: ' + str(peer_pair))
 
+                        res = s.recv(1024)
+                        rec_data = res
+                        while(len(res) != 0):
+                            res = s.recv(1024)
+                            rec_data += res
+
+                        split_data = rec_data.split()
+                        if(split_data[0].decode(ENCODING) == 'file'): # file was received
+                            # Store the file
+                            write_to_file(rec_data, filename, self.my_port)
+                            
                             # Request Address Book from peer
                             req = 'map ' + str(self.my_port)
                             print('Requesting map')
-                            s.send(message.encode(ENCODING))
+                            s.send(req.encode(ENCODING))
                             print('Sent request')
 
+                            # Whenever we receive the file, also recieve the address book and merge
+                            # as a secondary request in the same connection.
                             res2 = s.recv(1024)
                             rec_data2 = res2
                             while(len(res2) != 0):
                                 res2 = s.recv(1024)
                                 rec_data2 += res2
                             rec_data2 = rec_data2.decode(ENCODING)
-                            if(rec_data2.split(' ')[0] == 'map'): # file was received
+                            
+                            if(rec_data2.split('\n')[0] == 'map'): # file was received
                                 # Parse the received map and update our address book
-                                print('Received map: ' + rec_data2)
-                                
+                                map_to_parse = rec_data2[rec_data2.index('\n\n') + 2:]
+                                print('Received map: ' + map_to_parse)
+                                returned_map = parse_map(map_to_parse)
+                                update_address_book(returned_map)
+                            
                             s.close()
-                            # Whenever we receive the file, also recieve the address book and merge
-                            # as a secondary request in the same connection. Also, query database 
-                            # peer at the end.
-                        print()
-                    else:
-                        # If it doesn't exist, query a random peer from that list and request 
-                        # the file in the same manner. Update address book. Go to top of loop if not found.
-                        print()
+                            done = True
+                        elif(rec_data.split('\n')[0] == 'map'):
+                            # Parse the received map and update our address book
+                            map_to_parse = rec_data[rec_data.index('\n\n') + 2:]
+                            print('Received map: ' + map_to_parse)
+                            returned_map = parse_map(map_to_parse)
+                            update_address_book(returned_map)
+                        else:
+                            # Invalid request
+                            print('Received Response: ' + rec_data)
                     
-                    # If peers_to_query is empty, try querying database peer
-                    print()
+                # If peers_to_query is empty, try querying database peer
+                if(len(peers_to_query) == 0 and not done):
+                    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    # For other requests to specific peers
+                    try: # make a request to a peer
+                        s.connect((database_peer_host, database_peer_port))
+                    except socket.error as e:  # to handle connection refused case
+                        print("Error connecting to database: " + str(e))
+                        s.close()
+                        continue
+                    print('Requesting: ' + message)
+                    s.send(message.encode(ENCODING))
+                    print('Sent request')
+
+                    res = s.recv(1024)
+                    rec_data = res
+                    while(len(res) != 0):
+                        res = s.recv(1024)
+                        rec_data += res
+
+                    split_data = rec_data.split()
+                    if(split_data[0].decode(ENCODING) == 'file'): # file was received
+                        # Store the file
+                        print('Writing to file')
+                        write_to_file(rec_data, filename, self.my_port)
+                    else:
+                        print('Received response: ' + rec_data)
+
+                    done = True
             else:
                 print ("Invalid command, try connect, disconnect, or get")
 
@@ -269,22 +416,57 @@ def main():
     threads = [server.start(), client.start()]
     # print (threads) # display thread array
 
-def update_address_book(peer_map, peer_port):
+def update_address_book(peer_map):
     global address_book
     for file_name in peer_map:
         if file_name in address_book.keys():
             # Update list of items
-            if not peer_port in address_book[file_name]:
-                # Add peer to address book
-                address_book[file_name].append(peer_port)
+            for peer in peer_map[file_name]:
+                if not peer in address_book[file_name]:
+                    address_book[file_name].append(peer)
         else:
             # File name doesn't exist in address book
-            address_book[file_name] = [peer_port]
+            address_book[file_name] = peer_map[file_name]
 
 def parse_map(msg):
     # Parsing received address book from peer
-    # Format: {(key1, [value 1, value2]), (key2, [value3])}
-    print()
+    # Format: {(key1, [('ip1', port1), ('ip2', port2)])}
+    map_to_return = {} # map with form {filename, list of pairs}
+    parse = msg.strip('{}()')
+    map_values = parse.split(']), (')
+    for i in map_values:
+        i = i.strip(']')
+        current_keys = i.split(', [')
+        key = current_keys[0]
+        print("current key is" + key)
+        string_list = current_keys[1]
+        print(string_list)
+        pair_as_strings = string_list.strip('()').split('), (')
+        
+        list_of_pairs = []
+        for pair in pair_as_strings:
+            pair_details = pair.split(', ')
+            pair_to_add = (pair_details[0].strip('\''), int(pair_details[1]))
+            print("Pair to be added: " + str(pair_to_add))
+            list_of_pairs.append(pair_to_add)
+
+        #list_of_nodes = string_list.split(', ') # this will be stored as a list of all nodes with the file: key
+        map_to_return[key] = list_of_pairs # set the list of nodes to key of filename
+    
+    return map_to_return 
+
+def write_to_file(data, filename, port):
+    to_write = data[data.index(('\n\n').encode()) + 2:] # get actual file data and then store it  
+    # store_path = os.getcwd() + '/port_' + port + '/' + filename
+    store_path = 'port_' + str(port) + '/' + filename
+    try:
+        file_pointer = open(store_path, 'wb')
+    except:
+        print('Could not open file for download')
+                            
+    if(file_pointer):
+        file_pointer.write(to_write) # Encode the file to write the bytes when downloaded.
+        file_pointer.close()
 
 if __name__ == '__main__':
     main()
