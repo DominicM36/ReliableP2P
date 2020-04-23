@@ -11,6 +11,7 @@ Game references:
 https://www.pythonforbeginners.com/games/
 
 Protocol Keys:
+    
     connect: 
         This is sent when a new node has entered the network. When the database server receives a message containing connect, it knows to send out the peer list so that the new peer knows all the peers in the network.
 
