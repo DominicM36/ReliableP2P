@@ -6,7 +6,7 @@ from random import seed, randint
 
 ENCODING = 'utf-8'
 
-my_host = 'localhost'
+my_host = 'localhost' # IP of the computer hosting peer to peer server, local host for the scope of this class
 connected = False
 
 db_files = []
@@ -166,6 +166,7 @@ class Client(threading.Thread):
         global database_peer_host
         global database_peer_port
         global connected
+
         while True:
             print(address_book)
             message = input("Enter command: ")
@@ -237,7 +238,48 @@ class Client(threading.Thread):
                 print('db: ' + str(db_files))
 
                 s.close()
+            elif(message.split(' ')[0] == 'secure-get'): # Get ran on certain secure and trusted port. To be used with applications such as banking, trust this distributor wont alter files
+                secure_port = message.split(' ')[2] # Stores secure port number
+                secure_filename = message.split(' ')[1] # stores secure filename
+                message = 'get ' + secure_filename + ' ' + str(self.my_port)
+                if(not secure_filename in db_files):
+                    print('Invalid file ' + secure_filename + ' requested. Please try again.')
+                    continue
+                
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                try:
+                    s.connect(self.host, secure_port)
+                except socket.error as e:
+                    print('Error connecting to peer: ' + str(e))
+                    s.close()
+                    continue
+                print('Requesting data: ' + message)
+                s.send(message.encode(ENCODING))
+                
+                res = s.recv(1024)
+                rec_data = res
+                while(len(res) != 0):
+                res = s.recv(1024)
+                rec_data += res
+
+                s.close()
+
+                split_data = rec_data.split()
+                if(split_data[0].decode(ENCODING) == 'file'): # file was received
+                    print('Writing to file')
+                    # Update current map to reflect that I have the file as well as the peer I got it from
+                    file_map = {}
+                    file_map[filename] = [(self.my_host, self.my_port)]
+                    update_address_book(file_map)
+                    # Store the file
+                    write_to_file(rec_data, secure_filename, self.my_port)
+                else:
+                    print('Received response: ' + str(rec_data))
+                
             elif(message.split(' ')[0] == 'get'):
+                
+                file_not_received = True
+
                 print('In get')
                 message = message + ' ' + str(self.my_port)
                 filename = message.split(' ')[1]
@@ -292,6 +334,7 @@ class Client(threading.Thread):
                                 update_address_book(file_map)
                                 # Store the file
                                 write_to_file(rec_data, filename, self.my_port)
+                                file_not_received = False
                             else:
                                 print('Received response: ' + str(rec_data))
 
@@ -359,6 +402,7 @@ class Client(threading.Thread):
                                 update_address_book(file_map)
                                 # Store the file
                                 write_to_file(rec_data, filename, self.my_port)
+                                file_not_received = False
                             else:
                                 print('Received response: ' + str(rec_data))
                             
@@ -398,6 +442,7 @@ class Client(threading.Thread):
                             update_address_book(file_map)
                             # Store the file
                             write_to_file(rec_data, filename, self.my_port)
+                            file_not_received = False
 
                             s.close()
                             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -482,13 +527,19 @@ class Client(threading.Thread):
                         file_map = {}
                         file_map[filename] = [(self.my_host, self.my_port)]
                         update_address_book(file_map)
-                        write_to_file(rec_data, filename, self.my_port)   
+                        write_to_file(rec_data, filename, self.my_port)
+                        file_not_received = False
                     else:
                         print('Received response: ' + str(rec_data))
 
                     done = True
+
+                if(file_not_received):
+                    print('All peers busy. Try again later.')
             else:
                 print ("Invalid command, try connect, disconnect, or get")
+
+            
 
 
 def update_address_book(peer_map):
@@ -556,6 +607,8 @@ def write_to_file(data, filename, port):
     # store_path = os.getcwd() + '/port_' + port + '/' + filename
     store_path = 'port_' + str(port) + '/' + filename
     try:
+        if(os.path.exists(store_path)):
+            os.chmod(store_path, 0o755)
         file_pointer = open(store_path, 'wb')
     except:
         print('Could not open file for download')
@@ -563,6 +616,7 @@ def write_to_file(data, filename, port):
                             
     if(file_pointer):
         file_pointer.write(to_write) # Encode the file to write the bytes when downloaded.
+        os.chmod(store_path, 0o555)
         file_pointer.close()
 
 

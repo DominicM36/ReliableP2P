@@ -27,10 +27,6 @@ Protocol Keys:
         updated when another node joins the network. After this each peer will update their peer list removing the 
         disconnected node, and the disconnected node will terminate itself.
     
-    update_peers:
-        Sent by the database peer, this will be received by all peers in the network when a new peer joins notifying 
-        them to update their list of active peers.
-
     get:
         Request made by peer in search of file. When a node receives a get request on the client side, if it has the 
         file the request is looking for, it will send it with a header titled file, if it does not have a file, then 
@@ -40,3 +36,13 @@ Protocol Keys:
         book keeping track of what peers have what file. This will increase speed in following searches as its map 
         of what nodes have what files is increased with every query. Therefore, the more queries a peer makes, the 
         faster it can find any file. The address book grows and the peer learns where to look as time goes on.
+
+    Requests not made by user:
+        map:
+            Map is a request made by the peers and not by the user, when a peer receives a "map" request, it will
+            send back its address book for the peer that requested an update. This is used to keep all the peers
+            actively making requests up to date with which peers have which files, making their query faster the next
+            time around. It benefits the user to make multiple get requests.
+        
+        update_peers:
+            Sent by the database peer, this will be received by all peers in the network when a new peer joins notifying them to update their list of active peers.
