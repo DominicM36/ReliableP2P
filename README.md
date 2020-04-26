@@ -15,7 +15,10 @@ Protocol Keys:
     connect: 
         This is sent when a new node has entered the network. When the database server receives a message 
         containing connect, it knows to send out the peer list so that the new peer knows all the peers 
-        in the network.
+        in the network. The database peer will also send out a list of all the trusted files so the node
+        will not be able to query a file that the database peer does not know about from another peer.
+        This will increase the security of the network, preventing nodes from sharing files "Behind
+        the back" of the database peer.
 
     disconnect:
         This will be sent when a node decides to leave the network. When a disconnect command is issued, the node first 
