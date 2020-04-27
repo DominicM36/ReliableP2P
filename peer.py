@@ -731,8 +731,11 @@ def main():
                 print ("Directory already exists for port: " + str(my_port))
 
     server = Server(my_host, my_port)
-    client = Client(database_peer_host, database_peer_port, my_host, my_port)
-    threads = [server.start(), client.start()]
+    if(my_port == database_peer_port):
+        threads = server.start()
+    else:
+        client = Client(database_peer_host, database_peer_port, my_host, my_port)
+        threads = [server.start(), client.start()]
 
 
 if __name__ == '__main__':
