@@ -7,8 +7,34 @@ https://medium.com/@amannagpal4/how-to-create-your-own-decentralized-file-sharin
 https://www.webcodegeeks.com/python/python-network-programming-tutorial/
 
 Game references:
-
 https://www.pythonforbeginners.com/games/
+
+MP3 References:
+https://file-examples.com/index.php/sample-audio-files/sample-mp3-download/ 
+
+https://qoret.com/outkast-hey-ya/ 
+
+unclutter: 
+    Each peer creates their own directory to store their files that they receive from the peer to peer
+    file transfers ensuring that each file exists only to them unless requested. Unclutter is an 
+    executable script to recursively remove the directories created for each peer.
+
+
+How to run the code for the first time:
+    chmod 755 unclutter
+    ./unclutter
+    python3 peer.py
+
+Getting Started:
+    This project only runs locally currently. To run the code, you need to open multiple terminals and
+    run python3 peer.py on them. One of these terminals will be the 'always-on' database peer on which you
+    will set port number and the database port number to be the same. On the other 'peers', you will set 
+    unique port numbers but the same database port number as the database peer. The database peer can be 
+    left alone after this and can be minimized as no commands will be entered there. We recommend running
+    at least 4 peers side by side to understand and test the workings in detail.
+    
+    The first command needed to be sent for each peer will be connect. After which any of the commands 
+    outlined below can be used for various use cases.
 
 Protocol Keys:
     
