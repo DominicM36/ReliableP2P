@@ -269,7 +269,7 @@ class Client(threading.Thread):
                     print('Writing to file')
                     # Update current map to reflect that I have the file as well as the peer I got it from
                     file_map = {}
-                    file_map[filename] = [(self.my_host, self.my_port)]
+                    file_map[secure_filename] = [(self.my_host, self.my_port)]
                     update_address_book(file_map)
                     # Store the file
                     write_to_file(rec_data, secure_filename, self.my_port)
