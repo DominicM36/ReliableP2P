@@ -37,6 +37,14 @@ Protocol Keys:
         of what nodes have what files is increased with every query. Therefore, the more queries a peer makes, the 
         faster it can find any file. The address book grows and the peer learns where to look as time goes on.
 
+    secure-get:
+        This function acts similar to get, but with a specific port to retreive the file from. This would be used in 
+        the case where a user would like to download a secure app from a trusted source, i.e. banking apps. Offering a
+        trusted peer in the network and a way to directly access them for the application needed will help handle the 
+        issue of security within a peer to peer network. The trusted peers can be given their role by the creator of
+        the network, offering an admins approval. The addition of trusted peers makes the app more secure and safe
+        for downloading files.
+
     Requests not made by user:
         map:
             Map is a request made by the peers and not by the user, when a peer receives a "map" request, it will

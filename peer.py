@@ -259,8 +259,8 @@ class Client(threading.Thread):
                 res = s.recv(1024)
                 rec_data = res
                 while(len(res) != 0):
-                res = s.recv(1024)
-                rec_data += res
+                    res = s.recv(1024)
+                    rec_data += res
 
                 s.close()
 
