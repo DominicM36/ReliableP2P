@@ -1,5 +1,4 @@
 #!/bin/bash
 #script to remove directories made from nodes
 echo "cleaning"
-
 rm -rf port_*
