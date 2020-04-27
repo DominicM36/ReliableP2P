@@ -20,14 +20,15 @@ unclutter:
     executable script to recursively remove the directories created for each peer.
 
 
-How to run the code for the first time:
+How to run the code for the first time: 
+    
     chmod 755 unclutter
     ./unclutter
     python3 peer.py
 
 Getting Started:
     This project only runs locally currently. To run the code, you need to open multiple terminals and
-    run python3 peer.py on them. One of these terminals will be the 'always-on' database peer on which you
+    run `python3 peer.py` on them. One of these terminals will be the 'always-on' database peer on which you
     will set port number and the database port number to be the same. On the other 'peers', you will set 
     unique port numbers but the same database port number as the database peer. The database peer can be 
     left alone after this and can be minimized as no commands will be entered there. We recommend running
