@@ -38,12 +38,22 @@ Protocol Keys:
         faster it can find any file. The address book grows and the peer learns where to look as time goes on.
 
     secure-get:
-        This function acts similar to get, but with a specific port to retreive the file from. This would be used in 
+        This request acts similar to get, but with a specific port to retreive the file from. This would be used in 
         the case where a user would like to download a secure app from a trusted source, i.e. banking apps. Offering a
         trusted peer in the network and a way to directly access them for the application needed will help handle the 
         issue of security within a peer to peer network. The trusted peers can be given their role by the creator of
         the network, offering an admins approval. The addition of trusted peers makes the app more secure and safe
         for downloading files.
+
+    list:
+        This request prints out a list of files available for download within the network.
+
+    address-book:
+        This request will print out the peers address_book, allowing the user to see what 
+        files it knows the locations of presented in a clean and readable format.
+
+    seeding:
+        This request will print out all the files the user has in its directory.
 
     Requests not made by user:
         map:
